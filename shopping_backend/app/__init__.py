@@ -13,21 +13,26 @@ app.url_map.strict_slashes = False
 # Environment variables:
 # - FRONTEND_ORIGIN: single origin (e.g., https://example.com or http://localhost:3000)
 # - FRONTEND_ORIGINS: optional comma-separated list of additional origins
-default_frontend = os.getenv("FRONTEND_ORIGIN", "http://localhost:3000")
-extra_origins = os.getenv("FRONTEND_ORIGINS", "")
-origins = [o.strip() for o in ([default_frontend] + ([x for x in extra_origins.split(",")] if extra_origins else [])) if o.strip()]
+default_frontend = os.getenv("FRONTEND_ORIGIN", "").strip()
+extra_origins = os.getenv("FRONTEND_ORIGINS", "").strip()
 
-# Fallback wildcard for preview environments if not explicitly provided
-# Note: When Authorization header is used, browsers require a specific origin, but many preview
-# setups terminate TLS and forward requests; we keep wildcard as last resort for GETs without creds.
-if not origins:
-    origins = [default_frontend]
+origins_list = []
+if default_frontend:
+    origins_list.append(default_frontend)
+if extra_origins:
+    origins_list.extend([x.strip() for x in extra_origins.split(",") if x.strip()])
+
+# If no explicit origins are provided, default to permissive demo preview settings.
+# This avoids CORS failures like "Failed to fetch" in preview environments where the
+# frontend runs at https://<host>:3000 and backend at https://<host>:3001.
+# Since we do not use cookies (supports_credentials=False), wildcard is acceptable.
+cors_origins = origins_list if origins_list else "*"
 
 CORS(
     app,
     resources={
         r"/api/*": {
-            "origins": origins,
+            "origins": cors_origins,
             "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
             "allow_headers": ["Content-Type", "Authorization"],
             "expose_headers": ["Content-Type"],
@@ -35,7 +40,7 @@ CORS(
             "max_age": 600,
         },
         r"/": {
-            "origins": origins,
+            "origins": cors_origins,
             "methods": ["GET", "OPTIONS"],
             "allow_headers": ["Content-Type"],
             "supports_credentials": False,
