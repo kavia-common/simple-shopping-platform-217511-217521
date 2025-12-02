@@ -2,6 +2,7 @@ from typing import Dict, List, Optional
 import uuid
 import hashlib
 import time
+import re
 
 # Simple in-memory stores for demo
 DB = {
@@ -10,17 +11,97 @@ DB = {
     "sessions": {},  # token -> user_id
     "carts": {},     # user_id -> {product_id: quantity}
     "orders": {},    # order_id -> order data
+    "categories": {},  # category_id -> category
+    "category_slugs": {},  # slug -> category_id (for quick lookup)
 }
 
-# Seed products at import time for demo
-def _seed_products():
+
+def _slugify(name: str) -> str:
+    """
+    Create a simple URL-friendly slug from a category name.
+    This is sufficient for demo purposes.
+    """
+    slug = name.lower()
+    slug = re.sub(r"[^a-z0-9]+", "-", slug).strip("-")
+    return slug or "category"
+
+
+def _ensure_category(name: str) -> Dict:
+    """
+    Get or create a category by name. Returns the category dict {id, name, slug}.
+    """
+    slug = _slugify(name)
+    existing_id = DB["category_slugs"].get(slug)
+    if existing_id:
+        return DB["categories"][existing_id]
+    cid = str(uuid.uuid4())
+    category = {"id": cid, "name": name, "slug": slug}
+    DB["categories"][cid] = category
+    DB["category_slugs"][slug] = cid
+    return category
+
+
+# Seed products and categories at import time for demo
+def _seed_data():
     if DB["products"]:
         return
+
+    # Seed categories
+    clothing = _ensure_category("Clothing")
+    electronics = _ensure_category("Electronics")
+    groceries = _ensure_category("Groceries")
+
+    # Seed products (assign to categories)
     demo = [
-        {"name": "Ocean Tee", "price": 19.99, "description": "Soft cotton tee with ocean blue accent.", "image": "https://picsum.photos/seed/ocean-tee/400/300"},
-        {"name": "Amber Mug", "price": 9.49, "description": "Ceramic mug with amber glaze.", "image": "https://picsum.photos/seed/amber-mug/400/300"},
-        {"name": "Wave Hoodie", "price": 39.0, "description": "Cozy hoodie with wave pattern.", "image": "https://picsum.photos/seed/wave-hoodie/400/300"},
-        {"name": "Sea Cap", "price": 14.5, "description": "Adjustable cap with sea emblem.", "image": "https://picsum.photos/seed/sea-cap/400/300"},
+        {
+            "name": "Ocean Tee",
+            "price": 19.99,
+            "description": "Soft cotton tee with ocean blue accent.",
+            "image": "https://picsum.photos/seed/ocean-tee/400/300",
+            "category_id": clothing["id"],
+        },
+        {
+            "name": "Amber Mug",
+            "price": 9.49,
+            "description": "Ceramic mug with amber glaze.",
+            "image": "https://picsum.photos/seed/amber-mug/400/300",
+            "category_id": groceries["id"],
+        },
+        {
+            "name": "Wave Hoodie",
+            "price": 39.0,
+            "description": "Cozy hoodie with wave pattern.",
+            "image": "https://picsum.photos/seed/wave-hoodie/400/300",
+            "category_id": clothing["id"],
+        },
+        {
+            "name": "Sea Cap",
+            "price": 14.5,
+            "description": "Adjustable cap with sea emblem.",
+            "image": "https://picsum.photos/seed/sea-cap/400/300",
+            "category_id": clothing["id"],
+        },
+        {
+            "name": "Coral Earbuds",
+            "price": 24.99,
+            "description": "Wireless earbuds with clear sound.",
+            "image": "https://picsum.photos/seed/coral-earbuds/400/300",
+            "category_id": electronics["id"],
+        },
+        {
+            "name": "Tide Power Bank",
+            "price": 29.99,
+            "description": "Portable charger with fast charging.",
+            "image": "https://picsum.photos/seed/tide-powerbank/400/300",
+            "category_id": electronics["id"],
+        },
+        {
+            "name": "Citrus Granola",
+            "price": 5.99,
+            "description": "Crunchy granola with citrus zest.",
+            "image": "https://picsum.photos/seed/citrus-granola/400/300",
+            "category_id": groceries["id"],
+        },
     ]
     for p in demo:
         pid = str(uuid.uuid4())
@@ -30,9 +111,11 @@ def _seed_products():
             "price": p["price"],
             "description": p["description"],
             "image": p["image"],
+            "category_id": p["category_id"],
         }
 
-_seed_products()
+
+_seed_data()
 
 
 def _hash_password(password: str) -> str:
@@ -53,15 +136,45 @@ def get_user_id_from_token(token: Optional[str]) -> Optional[str]:
 
 
 # PUBLIC_INTERFACE
-def list_products() -> List[Dict]:
-    """Return list of all products for the catalog."""
-    return list(DB["products"].values())
+def list_products(category_id: Optional[str] = None, category_slug: Optional[str] = None) -> List[Dict]:
+    """Return list of products; optionally filter by category via id or slug."""
+    products = list(DB["products"].values())
+    if category_slug:
+        cid = DB["category_slugs"].get(category_slug)
+        if not cid:
+            return []  # unknown slug => no products
+        category_id = cid
+    if category_id:
+        products = [p for p in products if p.get("category_id") == category_id]
+    return products
 
 
 # PUBLIC_INTERFACE
 def get_product(product_id: str) -> Optional[Dict]:
     """Return a single product by id or None."""
     return DB["products"].get(product_id)
+
+
+# PUBLIC_INTERFACE
+def list_categories() -> List[Dict]:
+    """List all available product categories."""
+    # Return consistent ordering (by name)
+    return sorted(DB["categories"].values(), key=lambda c: c["name"].lower())
+
+
+# PUBLIC_INTERFACE
+def get_category_by_id(category_id: str) -> Optional[Dict]:
+    """Return category by id or None."""
+    return DB["categories"].get(category_id)
+
+
+# PUBLIC_INTERFACE
+def get_category_by_slug(slug: str) -> Optional[Dict]:
+    """Return category by slug or None."""
+    cid = DB["category_slugs"].get(slug)
+    if not cid:
+        return None
+    return DB["categories"].get(cid)
 
 
 # PUBLIC_INTERFACE
