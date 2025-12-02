@@ -136,16 +136,34 @@ def get_user_id_from_token(token: Optional[str]) -> Optional[str]:
 
 
 # PUBLIC_INTERFACE
-def list_products(category_id: Optional[str] = None, category_slug: Optional[str] = None) -> List[Dict]:
-    """Return list of products; optionally filter by category via id or slug."""
+def list_products(
+    category_id: Optional[str] = None,
+    category_slug: Optional[str] = None,
+    name_query: Optional[str] = None,
+) -> List[Dict]:
+    """Return list of products; optionally filter by:
+    - category via id or slug
+    - name_query: case-insensitive substring match on product name
+    """
     products = list(DB["products"].values())
+
+    # Resolve category via slug if provided
     if category_slug:
         cid = DB["category_slugs"].get(category_slug)
         if not cid:
             return []  # unknown slug => no products
         category_id = cid
+
+    # Filter by category id if available
     if category_id:
         products = [p for p in products if p.get("category_id") == category_id]
+
+    # Filter by case-insensitive substring match on product name
+    if name_query:
+        nq = name_query.strip().lower()
+        if nq:
+            products = [p for p in products if nq in p.get("name", "").lower()]
+
     return products
 
 

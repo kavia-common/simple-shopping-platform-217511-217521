@@ -78,19 +78,25 @@ def _auth_user_id():
 
 @blp_api.route("/products")
 class ProductsList(MethodView):
-    """List all products or filter by category."""
+    """List all products or filter by category and/or name query."""
     @blp_api.response(200, ProductSchema(many=True))
     def get(self):
         """List products
         ---
         summary: List products
-        description: Returns products, optionally filtered by category id (?category_id=ID) or slug (?category=slug).
+        description: |
+          Returns products, with optional filters:
+          - category_id: filter by category ID (e.g. ?category_id=<uuid>)
+          - category: filter by category slug (e.g. ?category=clothing)
+          - q: case-insensitive substring match on product name (e.g. ?q=tee)
+          Filters can be combined; slug resolves to category_id before filtering.
         tags:
           - Products
         """
         category_id = request.args.get("category_id")
         category_slug = request.args.get("category")
-        return list_products(category_id=category_id, category_slug=category_slug)
+        name_query = request.args.get("q")
+        return list_products(category_id=category_id, category_slug=category_slug, name_query=name_query)
 
 @blp_api.route("/products/<string:product_id>")
 class ProductDetail(MethodView):
