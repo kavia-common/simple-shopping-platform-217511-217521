@@ -1,6 +1,7 @@
 import os
 from typing import Dict, Any
 from flask import Flask, jsonify, request
+from flask_cors import CORS
 
 # PUBLIC_INTERFACE
 def create_app(config: Dict[str, Any] | None = None) -> Flask:
@@ -17,6 +18,9 @@ def create_app(config: Dict[str, Any] | None = None) -> Flask:
         __name__,
         instance_relative_config=False,
     )
+    # Enable CORS for all routes; adjust origins via environment if needed.
+    # This is helpful in preview/dev environments when frontend and backend are on different origins.
+    CORS(app, resources={r"/*": {"origins": "*"}})
 
     # Default configuration
     app.config.update(
